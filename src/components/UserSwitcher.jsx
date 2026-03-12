@@ -1,4 +1,4 @@
-import { C, font } from '../styles/designTokens';
+import { C } from '../styles/designTokens';
 import Btn from './Btn';
 
 // Demo users for testing different roles

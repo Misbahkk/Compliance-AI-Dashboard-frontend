@@ -18,7 +18,7 @@ function ComplianceApp() {
   const [altPick, setAltPick] = useState({});
   const [view, setView] = useState("document"); // document | issues | report
   const [hovPara, setHovPara] = useState(null);
-  const [activeSection, setActiveSection] = useState(null);
+
   const [panelIssue, setPanelIssue] = useState(null);
 
   const stepLabels = ["Extracting content","Tokenising","Mapping to ABPI clauses",
@@ -206,7 +206,6 @@ function ComplianceApp() {
               <div style={{ padding:"24px 28px" }}>
                 {DOC_SECTIONS.map((sec, si) => {
                   const sectionHasIssues = sec.content.some(p => p.issues.length > 0);
-                  const isActive = activeSection === sec.id;
                   return (
                     <div key={sec.id} style={{ marginBottom:28 }}>
                       {/* Section header */}
@@ -648,7 +647,8 @@ function ComplianceApp() {
               <div style={{ fontSize:13, color:C.slateLight, lineHeight:1.65, marginBottom:12 }}>
                 Company found in breach of {selected.clause} for unsubstantiated claim. No supporting head-to-head data was provided at time of complaint.
               </div>
-              <a href="#" style={{ color:C.teal, fontSize:13, fontWeight:700, textDecoration:"none" }}>View Full Case Report →</a>
+              {/* eslint-disable-next-line jsx-a11y/anchor-is-valid */}
+              <a href="" style={{ color:C.teal, fontSize:13, fontWeight:700, textDecoration:"none" }}>View Full Case Report →</a>
             </div>
           </GlassCard>
         )}

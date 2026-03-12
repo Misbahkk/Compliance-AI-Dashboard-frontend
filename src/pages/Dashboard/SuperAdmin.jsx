@@ -9,7 +9,7 @@ import * as LucideIcons from 'lucide-react';
 
 function SuperAdmin({ adminUser, onLogout }) {
   const [tab, setTab] = useState("overview"); // overview | orgs | users | analytics | security
-  const [selectedOrg, setSelectedOrg] = useState(null);
+
 
   const sideItems = [
     { id:"overview",  icon: BarChart3, label:"Overview" },
