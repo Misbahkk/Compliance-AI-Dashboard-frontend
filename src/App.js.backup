@@ -1,0 +1,1683 @@
+import { useState, useEffect, useRef } from "react";
+
+/* ═══════════════════════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════════════════════ */
+const C = {
+  teal:       "#00C5D4",
+  tealDark:   "#00A3B0",
+  tealGlow:   "#00C5D433",
+  navy:       "#050F1E",
+  navyMid:    "#0A1F3A",
+  navyLight:  "#0E2D50",
+  navyCard:   "#0C2240",
+  white:      "#FFFFFF",
+  offWhite:   "#F0F6FF",
+  slate:      "#8599B2",
+  slateLight: "#B8CEDE",
+  green:      "#00E0A0",
+  amber:      "#FFB800",
+  red:        "#FF4560",
+  purple:     "#8B5CF6",
+  indigo:     "#6366F1",
+  border:     "#142840",
+  card:       "#0B1E35",
+};
+
+const font = {
+  display: "'Georgia', 'Times New Roman', serif",
+  body:    "'Segoe UI', system-ui, -apple-system, sans-serif",
+  mono:    "'Cascadia Code', 'Fira Code', monospace",
+};
+
+/* ═══════════════════════════════════════════════════════════
+   SHARED MICRO-COMPONENTS
+═══════════════════════════════════════════════════════════ */
+const Chip = ({ children, color = C.teal, bg }) => (
+  <span style={{
+    display: "inline-block", fontSize: 11, fontWeight: 700,
+    letterSpacing: "0.08em", padding: "3px 10px", borderRadius: 20,
+    background: bg || `${color}22`, color, border: `1px solid ${color}44`,
+  }}>{children}</span>
+);
+
+const Btn = ({ children, variant = "primary", onClick, size = "md", style: s = {} }) => {
+  const [hov, setHov] = useState(false);
+  const pad = size === "lg" ? "15px 36px" : size === "sm" ? "8px 18px" : "11px 26px";
+  const fs  = size === "lg" ? 16 : size === "sm" ? 12 : 14;
+  const styles = {
+    primary: {
+      background: hov ? C.tealDark : C.teal,
+      color: C.navy, border: "none",
+      boxShadow: hov ? `0 0 32px ${C.tealGlow}, 0 4px 16px ${C.teal}66` : `0 0 20px ${C.tealGlow}`,
+    },
+    ghost: {
+      background: "transparent",
+      color: hov ? C.teal : C.slateLight,
+      border: `1px solid ${hov ? C.teal : C.border}`,
+    },
+    dark: {
+      background: hov ? C.navyLight : C.navyCard,
+      color: C.white, border: `1px solid ${C.border}`,
+    },
+    danger: {
+      background: hov ? "#CC3348" : C.red,
+      color: C.white, border: "none",
+    },
+  }[variant];
+  return (
+    <button onClick={onClick}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ padding: pad, fontSize: fs, fontWeight: 700, borderRadius: 10, cursor: "pointer",
+        transition: "all 0.2s", fontFamily: font.body, ...styles, ...s }}>
+      {children}
+    </button>
+  );
+};
+
+const GlassCard = ({ children, style: s = {}, glow }) => (
+  <div style={{
+    background: `linear-gradient(135deg, ${C.navyCard}ee, ${C.navyMid}aa)`,
+    border: `1px solid ${glow ? `${glow}44` : C.border}`,
+    borderRadius: 20, backdropFilter: "blur(12px)",
+    boxShadow: glow ? `0 0 40px ${glow}22, 0 8px 32px #00000040` : "0 8px 32px #00000040",
+    ...s,
+  }}>{children}</div>
+);
+
+const SeverityBadge = ({ sev }) => {
+  const map = { HIGH: [C.red, "HIGH RISK"], MED: [C.amber, "MODERATE"], LOW: [C.green, "LOW RISK"] };
+  const [col, lbl] = map[sev] || [C.slate, sev];
+  return <Chip color={col}>{lbl}</Chip>;
+};
+
+/* ═══════════════════════════════════════════════════════════
+   ANIMATED COUNTER
+═══════════════════════════════════════════════════════════ */
+function Counter({ to, suffix = "", prefix = "" }) {
+  const [val, setVal] = useState(0);
+  const ref = useRef(false);
+  useEffect(() => {
+    if (ref.current) return; ref.current = true;
+    const dur = 1800, step = 16;
+    let cur = 0;
+    const iv = setInterval(() => {
+      cur += (to / (dur / step));
+      if (cur >= to) { setVal(to); clearInterval(iv); }
+      else setVal(Math.floor(cur));
+    }, step);
+    return () => clearInterval(iv);
+  }, [to]);
+  return <span>{prefix}{val.toLocaleString()}{suffix}</span>;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   COMPLIANCE TEMP GAUGE
+═══════════════════════════════════════════════════════════ */
+function Gauge({ score = 54 }) {
+  const angle = -135 + (score / 100) * 270;
+  const col = score >= 70 ? C.green : score >= 40 ? C.amber : C.red;
+  const label = score >= 70 ? "LOW RISK" : score >= 40 ? "MODERATE" : "HIGH RISK";
+  return (
+    <div style={{ textAlign: "center" }}>
+      <svg width={160} height={110} viewBox="0 0 160 110">
+        <defs>
+          <linearGradient id="gg" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor={C.red} />
+            <stop offset="50%" stopColor={C.amber} />
+            <stop offset="100%" stopColor={C.green} />
+          </linearGradient>
+        </defs>
+        <path d="M16 95 A64 64 0 0 1 144 95" fill="none" stroke={C.border} strokeWidth="10" strokeLinecap="round" />
+        <path d="M16 95 A64 64 0 0 1 144 95" fill="none" stroke="url(#gg)" strokeWidth="10" strokeLinecap="round"
+          strokeDasharray="201" strokeDashoffset="0" opacity="0.3" />
+        <g transform={`rotate(${angle}, 80, 95)`}>
+          <line x1="80" y1="95" x2="80" y2="38" stroke={col} strokeWidth="3" strokeLinecap="round" />
+          <circle cx="80" cy="95" r="6" fill={col} />
+        </g>
+        <text x="80" y="82" textAnchor="middle" fontSize="22" fontWeight="800" fill={col}
+          fontFamily={font.body}>{score}</text>
+        <text x="80" y="95" textAnchor="middle" fontSize="9" fill={C.slate} fontFamily={font.body}>/100</text>
+      </svg>
+      <div style={{ fontSize: 11, fontWeight: 700, color: col, letterSpacing: "0.08em" }}>{label}</div>
+      <div style={{ fontSize: 11, color: C.slate, marginTop: 3 }}>Compliance Score</div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FLOW DIAGRAM NODE
+═══════════════════════════════════════════════════════════ */
+const FlowNode = ({ icon, label, sub, color, active, onClick }) => {
+  const [hov, setHov] = useState(false);
+  const lit = hov || active;
+  return (
+    <div onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, cursor: "pointer", transition: "all 0.2s" }}>
+      <div style={{
+        width: 56, height: 56, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 22, transition: "all 0.25s",
+        background: lit ? `${color}22` : `${C.border}99`,
+        border: `2px solid ${lit ? color : C.border}`,
+        boxShadow: lit ? `0 0 24px ${color}55` : "none",
+      }}>{icon}</div>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: lit ? C.white : C.slateLight, transition: "color 0.2s" }}>{label}</div>
+        {sub && <div style={{ fontSize: 10, color: C.slate, marginTop: 2 }}>{sub}</div>}
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════════════════════════════════
+   DATA
+═══════════════════════════════════════════════════════════ */
+const FLOW = [
+  { id:1, icon:"📤", label:"Upload",       sub:"PDF/DOCX",      color:C.teal   },
+  { id:2, icon:"⚙️", label:"Parse",         sub:"Extract & Chunk",color:C.indigo },
+  { id:3, icon:"🧠", label:"LLM Analyse",  sub:"ABPI Mapping",  color:C.purple },
+  { id:4, icon:"🚩", label:"Flag Issues",   sub:"RAG Scoring",   color:C.red    },
+  { id:5, icon:"✏️", label:"Alternatives", sub:"3 per issue",   color:C.amber  },
+  { id:6, icon:"📚", label:"PMCPA Match",  sub:"Case Library",  color:C.purple },
+  { id:7, icon:"📋", label:"Report",        sub:"Submit Ready",  color:C.green  },
+];
+
+const ISSUES = [
+  { id:1, sev:"HIGH",  clause:"Clause 6.1", text:"The most effective treatment available for patients", reason:"Unsubstantiated superlative comparative claim. No head-to-head data cited.", pmcpa:"AUTH/3456/1/21",
+    alts:["A highly effective treatment option, with Phase III data demonstrating significant response rates (REF)","An effective treatment with a proven efficacy profile across key clinical endpoints (REF)","A treatment with demonstrated efficacy — please see clinical data summary on file"] },
+  { id:2, sev:"MED",   clause:"Clause 7.2", text:"Rapid onset in all patients within 2 hours", reason:"'All patients' is an absolute not supported by trial data. Mean results must be cited.",  pmcpa:"AUTH/3201/8/20",
+    alts:["Rapid onset within 2 hours in 68% of patients in the pivotal Phase III study (REF)","68% response rate at 2 hours — a clinically meaningful onset of action (REF)","Onset of action data: 68% of patients responded within 2 hours (REF)"] },
+  { id:3, sev:"LOW",   clause:"Clause 4.1", text:"Suitable for all adult patients with this condition", reason:"Overly broad descriptor. Must reflect licensed indication and SmPC contraindications.", pmcpa:null,
+    alts:["For eligible adult patients as defined by the licensed indication — see SmPC for full eligibility criteria","Indicated for adults with [condition] meeting the inclusion criteria defined in the SmPC","For adults with [specific indication]; full prescribing information available in the SmPC"] },
+];
+
+/* ── Document sections with issue mapping ── */
+const DOC_SECTIONS = [
+  {
+    id: "s1",
+    label: "Section 1",
+    title: "Product Overview",
+    icon: "📋",
+    content: [
+      { id:"p1", text:"BRANDEX® (brandexinib) 50mg film-coated tablets is indicated for the treatment of adult patients with moderate-to-severe plaque psoriasis who are candidates for systemic therapy.", issues:[] },
+      { id:"p2", text:"BRANDEX is the most effective treatment available for patients with moderate-to-severe disease, offering rapid and sustained responses across all patient types.", issues:[1], highlight:"the most effective treatment available for patients with moderate-to-severe disease" },
+      { id:"p3", text:"Each tablet contains 50mg of brandexinib as the active substance. For the full list of excipients, see section 6.1 of the SmPC.", issues:[] },
+    ]
+  },
+  {
+    id: "s2",
+    label: "Section 2",
+    title: "Clinical Evidence",
+    icon: "🔬",
+    content: [
+      { id:"p4", text:"In the Phase III APEX trial, BRANDEX demonstrated statistically significant improvements across all primary and secondary endpoints.", issues:[] },
+      { id:"p5", text:"BRANDEX achieves rapid onset of action within 2 hours in all patients, as measured by the primary endpoint of PASI 75 at week 16.", issues:[2], highlight:"rapid onset of action within 2 hours in all patients" },
+      { id:"p6", text:"Response was maintained through week 52 with a favourable tolerability profile consistent with the established safety database.", issues:[] },
+    ]
+  },
+  {
+    id: "s3",
+    label: "Section 3",
+    title: "Patient Population",
+    icon: "👥",
+    content: [
+      { id:"p7", text:"BRANDEX is suitable for all adult patients who have had an inadequate response, are intolerant of, or have contraindications to other systemic therapies.", issues:[3], highlight:"suitable for all adult patients" },
+      { id:"p8", text:"Treatment with BRANDEX should be initiated and supervised by a physician experienced in the diagnosis and treatment of psoriasis.", issues:[] },
+    ]
+  },
+  {
+    id: "s4",
+    label: "Section 4",
+    title: "Dosing & Administration",
+    icon: "💊",
+    content: [
+      { id:"p9", text:"The recommended dose is one 50mg tablet taken orally once daily, with or without food.", issues:[] },
+      { id:"p10", text:"Treatment should be continued for as long as clinical benefit is demonstrated. Discontinuation should be considered if no response is observed after 16 weeks.", issues:[] },
+    ]
+  },
+  {
+    id: "s5",
+    label: "Section 5",
+    title: "Safety Information",
+    icon: "⚠️",
+    content: [
+      { id:"p11", text:"The most commonly reported adverse events (≥10%) in clinical trials were upper respiratory tract infections, headache, and nasopharyngitis.", issues:[] },
+      { id:"p12", text:"Before initiating treatment, patients should be evaluated for active or latent tuberculosis infection in accordance with local guidelines.", issues:[] },
+    ]
+  },
+];
+
+const ISSUE_MAP = { 1: ISSUES[0], 2: ISSUES[1], 3: ISSUES[2] };
+
+const ORG_USERS = [
+  { id:1, name:"Dr. Sarah Chen",    role:"Medical Reviewer",  status:"Active",   docs:14, badge:"🔬" },
+  { id:2, name:"James Whitfield",   role:"Brand Manager",     status:"Active",   docs:31, badge:"📊" },
+  { id:3, name:"Priya Nair",        role:"Content Author",    status:"Pending",  docs:0,  badge:"✏️" },
+  { id:4, name:"Michael Torres",    role:"Final Signatory",   status:"Active",   docs:8,  badge:"✅" },
+  { id:5, name:"Emma Sutcliffe",    role:"Compliance Officer",status:"Active",   docs:22, badge:"⚖️" },
+];
+
+const ORG_LIST = [
+  { id:1, name:"AstraZeneca UK",   plan:"Enterprise", users:48, docs:312, status:"Active",   logo:"🔬" },
+  { id:2, name:"Pfizer Limited",   plan:"Enterprise", users:31, docs:204, status:"Active",   logo:"💊" },
+  { id:3, name:"Novartis UK Ltd",  plan:"Pro",        users:12, docs:87,  status:"Active",   logo:"🧬" },
+  { id:4, name:"GSK Pharma",       plan:"Enterprise", users:64, docs:451, status:"Active",   logo:"🏥" },
+  { id:5, name:"Roche Diagnostics",plan:"Pro",        users:9,  docs:43,  status:"Pending",  logo:"🔭" },
+];
+
+/* ═══════════════════════════════════════════════════════════
+   NAV
+═══════════════════════════════════════════════════════════ */
+function TopNav({ page, setPage }) {
+  const navLinks = ["landing","app","onboard","superadmin"];
+  const labels = { landing:"Landing Page", app:"Compliance App", onboard:"Org Portal", superadmin:"Super Admin" };
+  return (
+    <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:999,
+      background:`${C.navy}ee`, backdropFilter:"blur(16px)",
+      borderBottom:`1px solid ${C.border}` }}>
+      <div style={{ maxWidth:1280, margin:"0 auto", padding:"0 24px",
+        display:"flex", alignItems:"center", gap:16, height:60 }}>
+        {/* Logo */}
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginRight:"auto" }}>
+          <div style={{ width:34, height:34, borderRadius:10,
+            background:`linear-gradient(135deg, ${C.teal}, ${C.navyLight})`,
+            display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>✓</div>
+          <div>
+            <div style={{ fontWeight:800, fontSize:16, color:C.white, fontFamily:font.display,
+              letterSpacing:"-0.02em" }}>Review<span style={{ color:C.teal }}>Ready</span></div>
+            <div style={{ fontSize:9, color:C.slate, letterSpacing:"0.1em" }}>ABPI COMPLIANCE AI</div>
+          </div>
+        </div>
+
+        {navLinks.map(k => (
+          <button key={k} onClick={() => setPage(k)}
+            style={{ background: page===k ? `${C.teal}22` : "transparent",
+              border: page===k ? `1px solid ${C.teal}44` : "1px solid transparent",
+              color: page===k ? C.teal : C.slateLight, borderRadius:8,
+              padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer",
+              transition:"all 0.2s", fontFamily:font.body }}>
+            {labels[k]}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ① LANDING PAGE
+═══════════════════════════════════════════════════════════ */
+function LandingPage({ setPage }) {
+  const features = [
+    { icon:"🧠", title:"LLM-Powered Analysis", desc:"Enterprise-grade language model maps every claim against ABPI Code clauses, surfacing risks human eyes miss.", color:C.teal },
+    { icon:"📚", title:"PMCPA Case Intelligence", desc:"Every flag is contextualised by relevant historical rulings from the full PMCPA case library.", color:C.purple },
+    { icon:"✏️", title:"3 Compliant Alternatives", desc:"Each issue comes with three LLM-generated rewrites that preserve intent while achieving full compliance.", color:C.amber },
+    { icon:"🌡️", title:"RAG Compliance Score", desc:"An overall compliance temperature check gives reviewers an instant measure of submission readiness.", color:C.green },
+    { icon:"🔒", title:"Zero Data Retention", desc:"Documents never leave your secure enterprise boundary. TLS 1.3 in transit, AES-256 at rest.", color:C.indigo },
+    { icon:"📊", title:"Audit Trail", desc:"Every query and output logged with identity and timestamp — GDPR-ready governance by default.", color:C.red },
+  ];
+  const stats = [
+    { val:80, suf:"%", label:"Faster review cycles",       pre:"Up to " },
+    { val:40, suf:"%", label:"Reduction in PMCPA risk",    pre:"Up to " },
+    { val:312, suf:"+", label:"PMCPA cases indexed",       pre:"" },
+    { val:3,  suf:"x",  label:"First-pass success rate",   pre:"" },
+  ];
+  return (
+    <div style={{ background:C.navy, color:C.white, fontFamily:font.body, overflowX:"hidden" }}>
+
+      {/* ── HERO ── */}
+      <section style={{ minHeight:"100vh", display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center", textAlign:"center",
+        padding:"120px 24px 80px", position:"relative", overflow:"hidden" }}>
+        {/* Glow blobs */}
+        <div style={{ position:"absolute", top:"20%", left:"50%", transform:"translateX(-50%)",
+          width:600, height:600, background:`radial-gradient(circle, ${C.teal}18 0%, transparent 70%)`,
+          pointerEvents:"none" }} />
+        <div style={{ position:"absolute", bottom:"10%", left:"10%",
+          width:300, height:300, background:`radial-gradient(circle, ${C.purple}12 0%, transparent 70%)`,
+          pointerEvents:"none" }} />
+
+        <Chip color={C.teal} bg={`${C.teal}15`}>ABPI COMPLIANCE · PRE-REVIEW INTELLIGENCE</Chip>
+
+        <h1 style={{ fontFamily:font.display, fontSize:"clamp(36px,6vw,72px)", fontWeight:700,
+          lineHeight:1.1, margin:"24px 0 20px", maxWidth:800,
+          background:`linear-gradient(135deg, ${C.white} 40%, ${C.teal})`,
+          WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+          Compliance Starts Before the Review Room
+        </h1>
+        <p style={{ fontSize:18, color:C.slateLight, maxWidth:580, lineHeight:1.7, margin:"0 0 40px" }}>
+          ReviewReady catches ABPI Code issues before they reach your Medical team — reducing review cycles, protecting your brand, and accelerating time to market.
+        </p>
+        <div style={{ display:"flex", gap:14, flexWrap:"wrap", justifyContent:"center" }}>
+          <Btn size="lg" onClick={() => setPage("app")}>Try the App →</Btn>
+          <Btn size="lg" variant="ghost" onClick={() => setPage("onboard")}>Explore Portals</Btn>
+        </div>
+
+        {/* Mini browser preview */}
+        <div style={{ marginTop:64, width:"100%", maxWidth:860,
+          background:`${C.navyCard}cc`, border:`1px solid ${C.border}`,
+          borderRadius:20, overflow:"hidden", boxShadow:`0 32px 80px #00000060, 0 0 0 1px ${C.teal}22` }}>
+          <div style={{ background:C.navyMid, padding:"12px 20px", display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ display:"flex", gap:6 }}>
+              {[C.red, C.amber, C.green].map(c=><div key={c} style={{ width:10, height:10, borderRadius:"50%", background:c }}/>)}
+            </div>
+            <div style={{ flex:1, background:C.border, borderRadius:6, padding:"4px 12px", fontSize:11, color:C.slate, fontFamily:font.mono }}>
+              https://reviewready.app/compliance
+            </div>
+          </div>
+          <div style={{ padding:"28px 32px", display:"flex", gap:20 }}>
+            {/* Left panel */}
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:13, color:C.slate, marginBottom:8 }}>📄 Draft_Promotional_v3.docx</div>
+              {ISSUES.slice(0,2).map(iss => (
+                <div key={iss.id} style={{ background:C.navyLight, borderRadius:12, padding:"14px 16px", marginBottom:10,
+                  border:`1px solid ${iss.sev==="HIGH"?C.red:C.amber}44`, display:"flex", gap:12, alignItems:"flex-start" }}>
+                  <span style={{ fontSize:18 }}>{iss.sev==="HIGH"?"🔴":"🟡"}</span>
+                  <div>
+                    <div style={{ display:"flex", gap:8, marginBottom:4 }}>
+                      <SeverityBadge sev={iss.sev} />
+                      <Chip color={C.slate}>{iss.clause}</Chip>
+                    </div>
+                    <div style={{ fontSize:12, color:C.slateLight, fontStyle:"italic" }}>"{iss.text}"</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Right panel */}
+            <div style={{ width:160, display:"flex", flexDirection:"column", alignItems:"center" }}>
+              <Gauge score={54} />
+              <div style={{ marginTop:16, width:"100%", fontSize:12 }}>
+                {[["Issues",3],["PMCPA",2],["Alts",9]].map(([k,v])=>(
+                  <div key={k} style={{ display:"flex", justifyContent:"space-between",
+                    borderBottom:`1px solid ${C.border}`, padding:"6px 0", color:C.slate }}>
+                    <span>{k}</span><span style={{ color:C.white, fontWeight:700 }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── STATS ── */}
+      <section style={{ padding:"80px 24px", borderTop:`1px solid ${C.border}`, background:C.navyMid }}>
+        <div style={{ maxWidth:1000, margin:"0 auto", display:"grid",
+          gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:32 }}>
+          {stats.map(s => (
+            <div key={s.label} style={{ textAlign:"center" }}>
+              <div style={{ fontFamily:font.display, fontSize:52, fontWeight:700,
+                background:`linear-gradient(135deg, ${C.teal}, ${C.green})`,
+                WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+                <Counter to={s.val} suffix={s.suf} prefix={s.pre} />
+              </div>
+              <div style={{ color:C.slate, fontSize:14, marginTop:8 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── PROBLEM ── */}
+      <section style={{ padding:"100px 24px" }}>
+        <div style={{ maxWidth:1000, margin:"0 auto" }}>
+          <Chip color={C.red}>THE PROBLEM</Chip>
+          <h2 style={{ fontFamily:font.display, fontSize:"clamp(28px,4vw,48px)", fontWeight:700,
+            margin:"20px 0 16px", maxWidth:640 }}>
+            Compliance is Being Treated as a Downstream Problem
+          </h2>
+          <p style={{ color:C.slateLight, fontSize:16, maxWidth:600, lineHeight:1.7, marginBottom:48 }}>
+            Content enters formal review without ABPI principles applied at creation. Medical teams spend time correcting preventable errors instead of exercising strategic judgement.
+          </p>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, maxWidth:760 }}>
+            {[
+              { icon:"🔁", title:"Repeated review cycles", desc:"The same avoidable errors appear submission after submission" },
+              { icon:"⏱️", title:"Delayed time to market", desc:"Every extra review cycle costs days — sometimes weeks" },
+              { icon:"🏥", title:"Overburdened Medical teams", desc:"Expert capacity wasted on fixable basic compliance corrections" },
+              { icon:"⚠️", title:"Growing PMCPA exposure", desc:"Digital content now drives the majority of PMCPA complaints" },
+            ].map(p => (
+              <GlassCard key={p.title} style={{ padding:"20px 22px", display:"flex", gap:14 }}>
+                <span style={{ fontSize:24 }}>{p.icon}</span>
+                <div>
+                  <div style={{ fontWeight:700, color:C.white, fontSize:14, marginBottom:4 }}>{p.title}</div>
+                  <div style={{ color:C.slate, fontSize:13 }}>{p.desc}</div>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FEATURES ── */}
+      <section style={{ padding:"100px 24px", background:C.navyMid, borderTop:`1px solid ${C.border}` }}>
+        <div style={{ maxWidth:1100, margin:"0 auto", textAlign:"center" }}>
+          <Chip color={C.teal}>CAPABILITIES</Chip>
+          <h2 style={{ fontFamily:font.display, fontSize:"clamp(28px,4vw,48px)", fontWeight:700, margin:"20px 0 16px" }}>
+            Everything You Need Before Formal Review
+          </h2>
+          <p style={{ color:C.slateLight, fontSize:16, maxWidth:540, margin:"0 auto 56px" }}>
+            ReviewReady acts as a first-line compliance copilot — not a replacement for Medical expertise.
+          </p>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))", gap:20, textAlign:"left" }}>
+            {features.map(f => (
+              <GlassCard key={f.title} glow={f.color} style={{ padding:"28px 26px" }}>
+                <div style={{ width:46, height:46, borderRadius:14, background:`${f.color}22`,
+                  border:`2px solid ${f.color}44`, display:"flex", alignItems:"center",
+                  justifyContent:"center", fontSize:22, marginBottom:18 }}>{f.icon}</div>
+                <div style={{ fontWeight:700, fontSize:16, color:C.white, marginBottom:8 }}>{f.title}</div>
+                <div style={{ color:C.slateLight, fontSize:13, lineHeight:1.65 }}>{f.desc}</div>
+              </GlassCard>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ── */}
+      <section style={{ padding:"100px 24px" }}>
+        <div style={{ maxWidth:1100, margin:"0 auto", textAlign:"center" }}>
+          <Chip color={C.purple}>HOW IT WORKS</Chip>
+          <h2 style={{ fontFamily:font.display, fontSize:"clamp(28px,4vw,48px)", fontWeight:700, margin:"20px 0 56px" }}>
+            Seven Steps to Submission-Ready Content
+          </h2>
+          <div style={{ display:"flex", gap:8, alignItems:"flex-start", justifyContent:"center", flexWrap:"wrap" }}>
+            {FLOW.map((s,i) => (
+              <div key={s.id} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <FlowNode {...s} />
+                {i < FLOW.length-1 && (
+                  <div style={{ color:C.border, fontSize:22, marginBottom:28 }}>→</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA ── */}
+      <section style={{ padding:"100px 24px", background:`linear-gradient(135deg, ${C.navyCard}, ${C.navyMid})`,
+        borderTop:`1px solid ${C.border}`, textAlign:"center" }}>
+        <h2 style={{ fontFamily:font.display, fontSize:"clamp(28px,4vw,52px)", fontWeight:700,
+          margin:"0 0 20px", background:`linear-gradient(135deg, ${C.white} 50%, ${C.teal})`,
+          WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+          Ready to Transform Your Review Process?
+        </h2>
+        <p style={{ color:C.slateLight, fontSize:17, maxWidth:500, margin:"0 auto 40px" }}>
+          Join leading pharma organisations using ReviewReady to deploy compliant content faster.
+        </p>
+        <div style={{ display:"flex", gap:14, justifyContent:"center", flexWrap:"wrap" }}>
+          <Btn size="lg" onClick={() => setPage("onboard")}>Start Onboarding →</Btn>
+          <Btn size="lg" variant="ghost" onClick={() => setPage("app")}>See the App</Btn>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ② COMPLIANCE APP
+═══════════════════════════════════════════════════════════ */
+function ComplianceApp() {
+  const [screen, setScreen] = useState("upload");
+  const [file, setFile] = useState(null);
+  const [analysing, setAnalysing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const [altPick, setAltPick] = useState({});
+  const [view, setView] = useState("document"); // document | issues | report
+  const [hovPara, setHovPara] = useState(null);
+  const [activeSection, setActiveSection] = useState(null);
+  const [panelIssue, setPanelIssue] = useState(null);
+
+  const stepLabels = ["Extracting content","Tokenising","Mapping to ABPI clauses",
+    "Scoring issues","Generating alternatives","PMCPA matching","Building report"];
+  const [stepIdx, setStepIdx] = useState(0);
+
+  const runAnalysis = () => {
+    if (!file) return;
+    setAnalysing(true); setProgress(0); setStepIdx(0);
+    let p = 0, s = 0;
+    const iv = setInterval(() => {
+      p += 2; s = Math.floor((p/100)*(stepLabels.length));
+      setProgress(Math.min(p,100));
+      setStepIdx(Math.min(s, stepLabels.length-1));
+      if (p>=100) { clearInterval(iv); setTimeout(()=>{ setAnalysing(false); setScreen("dashboard"); },400); }
+    }, 55);
+  };
+
+  /* ── Upload ── */
+  if (analysing) return (
+    <div style={{ minHeight:"100vh", background:C.navy, display:"flex", alignItems:"center",
+      justifyContent:"center", flexDirection:"column", gap:32, paddingTop:60 }}>
+      <div style={{ position:"relative", width:100, height:100 }}>
+        <svg width={100} height={100} viewBox="0 0 100 100" style={{ position:"absolute", inset:0 }}>
+          <circle cx={50} cy={50} r={44} fill="none" stroke={C.border} strokeWidth={8} />
+          <circle cx={50} cy={50} r={44} fill="none" stroke={C.teal} strokeWidth={8} strokeLinecap="round"
+            strokeDasharray={276} strokeDashoffset={276-(progress/100)*276}
+            style={{ transform:"rotate(-90deg)", transformOrigin:"50% 50%", transition:"stroke-dashoffset 0.1s" }} />
+        </svg>
+        <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center",
+          justifyContent:"center", fontSize:28 }}>🧠</div>
+      </div>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ fontWeight:800, fontSize:22, color:C.white, marginBottom:8 }}>Analysing Your Document</div>
+        <div style={{ color:C.teal, fontSize:14, fontFamily:font.mono }}>{stepLabels[stepIdx]}...</div>
+      </div>
+      <div style={{ width:420, background:C.navyCard, borderRadius:16, padding:"20px 24px",
+        border:`1px solid ${C.border}` }}>
+        {stepLabels.map((l,i) => (
+          <div key={l} style={{ display:"flex", alignItems:"center", gap:12, padding:"7px 0",
+            borderBottom: i<stepLabels.length-1 ? `1px solid ${C.border}` : "none",
+            opacity: i > stepIdx ? 0.3 : 1, transition:"opacity 0.3s" }}>
+            <span style={{ fontSize:13, color: i<stepIdx ? C.green : i===stepIdx ? C.teal : C.slate }}>
+              {i<stepIdx ? "✓" : i===stepIdx ? "›" : "○"}
+            </span>
+            <span style={{ fontSize:12, color: i===stepIdx ? C.white : C.slateLight,
+              fontFamily:font.mono }}>{l}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (screen === "upload") return (
+    <div style={{ minHeight:"100vh", background:C.navy, paddingTop:80, display:"flex",
+      alignItems:"center", justifyContent:"center" }}>
+      <div style={{ width:"100%", maxWidth:640, padding:32 }}>
+        <GlassCard style={{ padding:40 }}>
+          <div style={{ marginBottom:32 }}>
+            <Chip color={C.teal}>STEP 1 OF 3</Chip>
+            <h2 style={{ fontFamily:font.display, fontSize:28, fontWeight:700, color:C.white,
+              margin:"14px 0 8px" }}>Upload for Compliance Review</h2>
+            <p style={{ color:C.slate, fontSize:14, lineHeight:1.6 }}>
+              Upload your draft promotional or medical material. ReviewReady analyses it against ABPI Code clauses before it reaches formal review.
+            </p>
+          </div>
+
+          {/* Drop zone */}
+          <div onClick={() => setFile({ name:"Draft_Promotional_v3.docx", size:"142 KB" })}
+            style={{ border:`2px dashed ${file ? C.green : C.border}`,
+              borderRadius:16, padding:"44px 32px", textAlign:"center", cursor:"pointer",
+              background: file ? `${C.green}08` : `${C.navyLight}40`,
+              transition:"all 0.2s", marginBottom:24 }}>
+            <div style={{ fontSize:40, marginBottom:12 }}>{file ? "📄" : "⬆️"}</div>
+            {file ? (
+              <>
+                <div style={{ fontWeight:700, color:C.white, fontSize:15 }}>{file.name}</div>
+                <div style={{ color:C.slate, fontSize:13, marginTop:4 }}>{file.size} · DOCX</div>
+                <div style={{ color:C.green, fontSize:13, marginTop:10, fontWeight:600 }}>✓ Ready for analysis</div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight:700, color:C.white, fontSize:16 }}>Drop your document here</div>
+                <div style={{ color:C.slate, fontSize:13, marginTop:6 }}>or click to browse · PDF, DOCX supported</div>
+              </>
+            )}
+          </div>
+
+          {/* Security notice */}
+          <div style={{ background:`${C.indigo}15`, border:`1px solid ${C.indigo}33`,
+            borderRadius:12, padding:"14px 18px", marginBottom:24,
+            display:"flex", gap:12, alignItems:"flex-start" }}>
+            <span style={{ fontSize:18 }}>🔒</span>
+            <div>
+              <div style={{ fontWeight:700, color:C.indigo, fontSize:13 }}>Enterprise Secure · Zero Retention</div>
+              <div style={{ color:"#A5B4FC", fontSize:12, marginTop:3, lineHeight:1.5 }}>
+                Processed within a closed enterprise LLM environment. TLS 1.3 in transit, AES-256 at rest. Data never used to train models.
+              </div>
+            </div>
+          </div>
+
+          <Btn style={{ width:"100%" }} onClick={runAnalysis}>
+            {file ? "Run Compliance Analysis →" : "Select a file to begin"}
+          </Btn>
+        </GlassCard>
+      </div>
+    </div>
+  );
+
+  /* ── Dashboard ── */
+  if (screen === "dashboard" && !selected) return (
+    <div style={{ minHeight:"100vh", background:C.navy, paddingTop:76 }}>
+      <div style={{ maxWidth:1080, margin:"0 auto", padding:32 }}>
+        {/* Header row */}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:28 }}>
+          <div>
+            <Chip color={C.green}>ANALYSIS COMPLETE</Chip>
+            <h2 style={{ fontFamily:font.display, fontSize:24, fontWeight:700, color:C.white, margin:"10px 0 4px" }}>
+              Compliance Dashboard
+            </h2>
+            <div style={{ color:C.slate, fontSize:13 }}>Draft_Promotional_v3.docx · Analysed just now</div>
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            {[["document","📄 Document"],["issues","🚩 Issues"],["report","📊 Report"]].map(([v,lbl]) => (
+              <Btn key={v} variant={view===v?"primary":"dark"} onClick={() => setView(v)}>{lbl}</Btn>
+            ))}
+            <Btn variant="ghost" onClick={() => setScreen("upload")}>↑ New Upload</Btn>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", gap:20, marginBottom:24 }}>
+          <GlassCard style={{ padding:"24px 28px", display:"flex", alignItems:"center" }}>
+            <Gauge score={54} />
+          </GlassCard>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16 }}>
+            {[
+              { icon:"🚩", val:ISSUES.length, label:"Total Issues",      col:C.teal },
+              { icon:"🔴", val:1,             label:"High Risk",          col:C.red  },
+              { icon:"🟡", val:1,             label:"Moderate Risk",      col:C.amber },
+              { icon:"🟢", val:1,             label:"Low Risk",           col:C.green },
+              { icon:"📚", val:2,             label:"PMCPA Cases",        col:C.purple },
+              { icon:"✏️", val:9,             label:"Alternatives Ready", col:C.indigo },
+            ].map(s => (
+              <GlassCard key={s.label} style={{ padding:"18px 20px" }}>
+                <div style={{ fontSize:20, marginBottom:6 }}>{s.icon}</div>
+                <div style={{ fontSize:26, fontWeight:800, color:s.col, fontFamily:font.display }}>{s.val}</div>
+                <div style={{ fontSize:12, color:C.slate, marginTop:3 }}>{s.label}</div>
+              </GlassCard>
+            ))}
+          </div>
+        </div>
+
+        {view === "document" ? (
+          /* ── DOCUMENT BREAKDOWN VIEW ── */
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 380px", gap:20, alignItems:"start" }}>
+
+            {/* Left: annotated document */}
+            <GlassCard>
+              <div style={{ padding:"16px 24px", borderBottom:`1px solid ${C.border}`,
+                display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div>
+                  <div style={{ fontWeight:700, color:C.white, fontSize:15 }}>Document Breakdown</div>
+                  <div style={{ fontSize:12, color:C.slate, marginTop:2 }}>
+                    Click any highlighted text to inspect the compliance issue
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                  <span style={{ fontSize:11, color:C.red }}>● High</span>
+                  <span style={{ fontSize:11, color:C.amber }}>● Moderate</span>
+                  <span style={{ fontSize:11, color:C.green }}>● Low</span>
+                </div>
+              </div>
+
+              <div style={{ padding:"24px 28px" }}>
+                {DOC_SECTIONS.map((sec, si) => {
+                  const sectionHasIssues = sec.content.some(p => p.issues.length > 0);
+                  const isActive = activeSection === sec.id;
+                  return (
+                    <div key={sec.id} style={{ marginBottom:28 }}>
+                      {/* Section header */}
+                      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14,
+                        padding:"10px 14px", borderRadius:10,
+                        background: sectionHasIssues
+                          ? `linear-gradient(90deg, ${C.red}12, ${C.navyLight}44)`
+                          : `${C.navyLight}33`,
+                        border:`1px solid ${sectionHasIssues ? C.red+"44" : C.border}` }}>
+                        <span style={{ fontSize:18 }}>{sec.icon}</span>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:11, color:C.slate, fontWeight:700, letterSpacing:"0.08em" }}>
+                            {sec.label.toUpperCase()}
+                          </div>
+                          <div style={{ fontSize:14, fontWeight:700, color:C.white }}>{sec.title}</div>
+                        </div>
+                        {sectionHasIssues ? (
+                          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                            {sec.content.filter(p=>p.issues.length>0).map(p =>
+                              p.issues.map(iid => {
+                                const iss = ISSUE_MAP[iid];
+                                return iss ? <SeverityBadge key={iid} sev={iss.sev} /> : null;
+                              })
+                            )}
+                          </div>
+                        ) : (
+                          <Chip color={C.green}>✓ Clean</Chip>
+                        )}
+                      </div>
+
+                      {/* Paragraphs */}
+                      {sec.content.map(para => {
+                        const hasIssue = para.issues.length > 0;
+                        const issObj = hasIssue ? ISSUE_MAP[para.issues[0]] : null;
+                        const sevColor = issObj ? (issObj.sev==="HIGH" ? C.red : issObj.sev==="MED" ? C.amber : C.green) : C.teal;
+                        const isHov = hovPara === para.id;
+                        const isPanel = panelIssue && para.issues.includes(panelIssue.id);
+
+                        /* Render paragraph with highlighted phrase */
+                        const renderText = () => {
+                          if (!hasIssue || !para.highlight) {
+                            return <span style={{ color:C.slateLight }}>{para.text}</span>;
+                          }
+                          const idx = para.text.indexOf(para.highlight);
+                          if (idx === -1) return <span style={{ color:C.slateLight }}>{para.text}</span>;
+                          const before = para.text.slice(0, idx);
+                          const match  = para.text.slice(idx, idx + para.highlight.length);
+                          const after  = para.text.slice(idx + para.highlight.length);
+                          return (
+                            <span style={{ color:C.slateLight }}>
+                              {before}
+                              <mark style={{
+                                background: isHov||isPanel ? `${sevColor}44` : `${sevColor}28`,
+                                color: C.white,
+                                borderRadius:4,
+                                padding:"1px 4px",
+                                border:`1px solid ${sevColor}66`,
+                                cursor:"pointer",
+                                transition:"all 0.2s",
+                                fontWeight:600,
+                                boxShadow: isHov||isPanel ? `0 0 12px ${sevColor}55` : "none",
+                              }}>{match}</mark>
+                              {after}
+                            </span>
+                          );
+                        };
+
+                        return (
+                          <div key={para.id}
+                            onClick={() => hasIssue && setPanelIssue(ISSUE_MAP[para.issues[0]])}
+                            onMouseEnter={() => setHovPara(para.id)}
+                            onMouseLeave={() => setHovPara(null)}
+                            style={{
+                              position:"relative",
+                              padding:"12px 14px 12px 18px",
+                              borderRadius:10,
+                              marginBottom:8,
+                              fontSize:14,
+                              lineHeight:1.75,
+                              cursor: hasIssue ? "pointer" : "default",
+                              background: isPanel
+                                ? `${sevColor}10`
+                                : isHov && hasIssue
+                                  ? `${C.navyLight}88`
+                                  : "transparent",
+                              borderLeft: hasIssue
+                                ? `3px solid ${isPanel||isHov ? sevColor : sevColor+"66"}`
+                                : `3px solid transparent`,
+                              transition:"all 0.2s",
+                            }}>
+                            {/* Issue flag badge */}
+                            {hasIssue && (
+                              <div style={{
+                                position:"absolute", right:12, top:12,
+                                background:`${sevColor}22`, border:`1px solid ${sevColor}55`,
+                                borderRadius:8, padding:"3px 8px",
+                                fontSize:10, fontWeight:700, color:sevColor,
+                                display:"flex", alignItems:"center", gap:4,
+                              }}>
+                                {issObj?.sev==="HIGH"?"🔴":issObj?.sev==="MED"?"🟡":"🟢"}
+                                {issObj?.clause}
+                              </div>
+                            )}
+                            <div style={{ paddingRight: hasIssue ? 90 : 0 }}>
+                              {renderText()}
+                            </div>
+                            {hasIssue && (isHov || isPanel) && (
+                              <div style={{ marginTop:8, fontSize:12, color:sevColor, fontWeight:600 }}>
+                                ↗ Click to see issue details and alternatives
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </GlassCard>
+
+            {/* Right: Issue panel */}
+            <div style={{ position:"sticky", top:80 }}>
+              {panelIssue ? (
+                <div>
+                  {/* Issue detail panel */}
+                  <GlassCard glow={panelIssue.sev==="HIGH"?C.red:panelIssue.sev==="MED"?C.amber:C.green}
+                    style={{ padding:24, marginBottom:16 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+                      <SeverityBadge sev={panelIssue.sev} />
+                      <button onClick={() => setPanelIssue(null)}
+                        style={{ background:"none", border:"none", color:C.slate, cursor:"pointer",
+                          fontSize:18, lineHeight:1, padding:0 }}>✕</button>
+                    </div>
+                    <Chip color={C.indigo} style={{ marginBottom:12 }}>{panelIssue.clause}</Chip>
+                    <div style={{ fontSize:13, color:C.white, fontWeight:700, fontStyle:"italic",
+                      margin:"10px 0 14px", lineHeight:1.6 }}>
+                      "{panelIssue.text}"
+                    </div>
+
+                    {/* Why flagged */}
+                    <div style={{ background:`${C.amber}12`, border:`1px solid ${C.amber}33`,
+                      borderRadius:10, padding:"12px 14px", borderLeft:`3px solid ${C.amber}`,
+                      marginBottom:16 }}>
+                      <div style={{ fontSize:10, fontWeight:700, color:C.amber, letterSpacing:"0.08em", marginBottom:4 }}>
+                        WHY THIS IS FLAGGED
+                      </div>
+                      <div style={{ fontSize:12, color:C.slateLight, lineHeight:1.65 }}>
+                        {panelIssue.reason}
+                      </div>
+                    </div>
+
+                    {/* ABPI reference */}
+                    <div style={{ background:`${C.indigo}12`, border:`1px solid ${C.indigo}33`,
+                      borderRadius:10, padding:"12px 14px", marginBottom:16 }}>
+                      <div style={{ fontSize:10, fontWeight:700, color:C.indigo, letterSpacing:"0.08em", marginBottom:4 }}>
+                        ABPI CODE REFERENCE
+                      </div>
+                      <div style={{ fontSize:12, color:"#A5B4FC", lineHeight:1.65 }}>
+                        {panelIssue.clause === "Clause 6.1"
+                          ? "Clause 6.1 — Claims must be capable of substantiation. Comparative claims must be based on relevant data and must not mislead."
+                          : panelIssue.clause === "Clause 7.2"
+                          ? "Clause 7.2 — Information must be presented accurately. Absolute descriptors such as 'all patients' must be supported by evidence."
+                          : "Clause 4.1 — Materials must reflect the licensed indication accurately and not describe uses broader than those in the SmPC."}
+                      </div>
+                    </div>
+
+                    {panelIssue.pmcpa && (
+                      <div style={{ background:`${C.purple}12`, border:`1px solid ${C.purple}33`,
+                        borderRadius:10, padding:"12px 14px", marginBottom:16 }}>
+                        <div style={{ fontSize:10, fontWeight:700, color:C.purple, letterSpacing:"0.08em", marginBottom:4 }}>
+                          📚 MATCHED PMCPA CASE
+                        </div>
+                        <div style={{ fontSize:12, color:"#C4B5FD", fontWeight:700 }}>{panelIssue.pmcpa}</div>
+                        <div style={{ fontSize:11, color:C.slate, marginTop:4 }}>Tap to view full ruling</div>
+                      </div>
+                    )}
+                  </GlassCard>
+
+                  {/* Alternatives panel */}
+                  <GlassCard style={{ padding:24 }}>
+                    <div style={{ fontWeight:700, color:C.white, fontSize:14, marginBottom:4 }}>
+                      ✏️ Compliant Alternatives
+                    </div>
+                    <div style={{ fontSize:11, color:C.slate, marginBottom:16 }}>
+                      Select one to replace the flagged text
+                    </div>
+                    {panelIssue.alts.map((alt, i) => (
+                      <div key={i}
+                        onClick={() => setAltPick({...altPick, [panelIssue.id]:i})}
+                        style={{ border:`2px solid ${altPick[panelIssue.id]===i ? C.teal : C.border}`,
+                          borderRadius:12, padding:"14px 16px", marginBottom:10, cursor:"pointer",
+                          background: altPick[panelIssue.id]===i ? `${C.teal}12` : `${C.navyLight}44`,
+                          transition:"all 0.2s", display:"flex", gap:12 }}>
+                        <div style={{ width:24, height:24, borderRadius:"50%", flexShrink:0,
+                          background: altPick[panelIssue.id]===i ? C.teal : C.border,
+                          color: altPick[panelIssue.id]===i ? C.navy : C.slate,
+                          display:"flex", alignItems:"center", justifyContent:"center",
+                          fontSize:11, fontWeight:800 }}>{i+1}</div>
+                        <div style={{ fontSize:12, color:C.slateLight, lineHeight:1.65 }}>{alt}</div>
+                      </div>
+                    ))}
+                    {altPick[panelIssue.id] !== undefined && (
+                      <Btn style={{ width:"100%", marginTop:4 }}>
+                        ✓ Apply Alternative {altPick[panelIssue.id]+1}
+                      </Btn>
+                    )}
+                  </GlassCard>
+                </div>
+              ) : (
+                /* Default side panel — issue summary */
+                <div>
+                  <GlassCard style={{ padding:24, marginBottom:16 }}>
+                    <div style={{ fontWeight:700, color:C.white, fontSize:14, marginBottom:16 }}>
+                      Issue Map
+                    </div>
+                    <div style={{ fontSize:12, color:C.slate, marginBottom:16 }}>
+                      Click any highlighted text in the document to inspect the issue in detail.
+                    </div>
+
+                    {/* Visual section map */}
+                    {DOC_SECTIONS.map(sec => {
+                      const secIssues = sec.content.flatMap(p => p.issues.map(id => ISSUE_MAP[id])).filter(Boolean);
+                      return (
+                        <div key={sec.id} style={{ marginBottom:12,
+                          padding:"12px 14px", borderRadius:10,
+                          background: secIssues.length ? `${C.navyLight}66` : `${C.navyLight}33`,
+                          border:`1px solid ${secIssues.length ? C.border : C.border+"66"}`,
+                          display:"flex", alignItems:"center", gap:10 }}>
+                          <span style={{ fontSize:16 }}>{sec.icon}</span>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:12, fontWeight:700, color:secIssues.length ? C.white : C.slate }}>
+                              {sec.title}
+                            </div>
+                            {secIssues.length > 0 && (
+                              <div style={{ display:"flex", gap:4, marginTop:4, flexWrap:"wrap" }}>
+                                {secIssues.map(iss => (
+                                  <span key={iss.id} style={{ fontSize:10,
+                                    color: iss.sev==="HIGH" ? C.red : iss.sev==="MED" ? C.amber : C.green }}>
+                                    ● {iss.clause}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {secIssues.length ? (
+                            <div style={{ fontSize:14, fontWeight:800,
+                              color: secIssues.some(i=>i.sev==="HIGH") ? C.red : C.amber }}>
+                              {secIssues.length}
+                            </div>
+                          ) : (
+                            <span style={{ color:C.green, fontSize:14 }}>✓</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </GlassCard>
+
+                  <GlassCard style={{ padding:24 }}>
+                    <div style={{ fontWeight:700, color:C.white, fontSize:14, marginBottom:14 }}>
+                      All Flags At A Glance
+                    </div>
+                    {ISSUES.map(iss => (
+                      <div key={iss.id}
+                        onClick={() => setPanelIssue(iss)}
+                        style={{ padding:"12px 14px", borderRadius:10, marginBottom:8, cursor:"pointer",
+                          border:`1px solid ${iss.sev==="HIGH"?C.red:iss.sev==="MED"?C.amber:C.green}44`,
+                          background:`${iss.sev==="HIGH"?C.red:iss.sev==="MED"?C.amber:C.green}0D`,
+                          transition:"all 0.15s" }}
+                        onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
+                        onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+                        <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6 }}>
+                          <SeverityBadge sev={iss.sev} />
+                          <Chip color={C.indigo}>{iss.clause}</Chip>
+                        </div>
+                        <div style={{ fontSize:12, color:C.slateLight, fontStyle:"italic",
+                          lineHeight:1.5 }}>"{iss.text.slice(0,55)}..."</div>
+                        <div style={{ fontSize:11, color:C.teal, marginTop:6, fontWeight:600 }}>
+                          Click to inspect →
+                        </div>
+                      </div>
+                    ))}
+                  </GlassCard>
+                </div>
+              )}
+            </div>
+          </div>
+
+        ) : view === "issues" ? (
+          /* Issues list */
+          <GlassCard>
+            <div style={{ padding:"16px 24px", borderBottom:`1px solid ${C.border}`,
+              display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ fontWeight:700, color:C.white, fontSize:15 }}>Flagged Issues</div>
+              <div style={{ fontSize:12, color:C.slate }}>Click an issue to review alternatives</div>
+            </div>
+            {ISSUES.map((iss,i) => (
+              <div key={iss.id} onClick={() => setSelected(iss)}
+                style={{ padding:"20px 24px", borderBottom: i<ISSUES.length-1 ? `1px solid ${C.border}` : "none",
+                  cursor:"pointer", display:"flex", gap:16, alignItems:"flex-start",
+                  transition:"background 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.background = `${C.teal}08`}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                <div style={{ width:40, height:40, borderRadius:10, flexShrink:0,
+                  background: iss.sev==="HIGH" ? `${C.red}22` : iss.sev==="MED" ? `${C.amber}22` : `${C.green}22`,
+                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>
+                  {iss.sev==="HIGH"?"🔴":iss.sev==="MED"?"🟡":"🟢"}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8, flexWrap:"wrap" }}>
+                    <SeverityBadge sev={iss.sev} />
+                    <Chip color={C.slate}>{iss.clause}</Chip>
+                    {iss.pmcpa && <Chip color={C.purple}>📚 PMCPA: {iss.pmcpa}</Chip>}
+                  </div>
+                  <div style={{ fontSize:14, color:C.white, fontWeight:600, marginBottom:6,
+                    fontStyle:"italic" }}>"{iss.text}"</div>
+                  <div style={{ fontSize:13, color:C.slate, lineHeight:1.5 }}>{iss.reason}</div>
+                </div>
+                <div style={{ color:C.teal, fontSize:20, flexShrink:0 }}>›</div>
+              </div>
+            ))}
+          </GlassCard>
+        ) : (
+          /* ── REPORT VIEW ── */
+          <GlassCard>
+            <div style={{ padding:"24px 28px", borderBottom:`1px solid ${C.border}`,
+              background:`linear-gradient(90deg, ${C.navyLight}, ${C.navyCard})`, borderRadius:"20px 20px 0 0" }}>
+              <Chip color={C.teal}>COMPLIANCE SUMMARY REPORT</Chip>
+              <h3 style={{ color:C.white, fontFamily:font.display, fontSize:20, margin:"10px 0 4px", fontWeight:700 }}>
+                Draft_Promotional_v3.docx
+              </h3>
+              <div style={{ color:C.slate, fontSize:12 }}>
+                {new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})} · Prepared for Vodori Submission
+              </div>
+            </div>
+            <div style={{ padding:"24px 28px" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                <thead>
+                  <tr>
+                    {["#","Clause","Risk Level","Excerpt","Alternatives","PMCPA"].map(h => (
+                      <th key={h} style={{ padding:"10px 14px", textAlign:"left", color:C.slate,
+                        fontSize:11, fontWeight:700, letterSpacing:"0.06em",
+                        borderBottom:`1px solid ${C.border}` }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ISSUES.map((iss,i) => (
+                    <tr key={iss.id} style={{ borderBottom:`1px solid ${C.border}` }}>
+                      <td style={{ padding:"14px", color:C.slate }}>{i+1}</td>
+                      <td style={{ padding:"14px", color:C.indigo, fontWeight:700 }}>{iss.clause}</td>
+                      <td style={{ padding:"14px" }}><SeverityBadge sev={iss.sev} /></td>
+                      <td style={{ padding:"14px", color:C.slateLight, fontStyle:"italic", maxWidth:220 }}>
+                        "{iss.text.slice(0,40)}..."
+                      </td>
+                      <td style={{ padding:"14px" }}>
+                        <Chip color={C.green}>3 provided</Chip>
+                      </td>
+                      <td style={{ padding:"14px" }}>
+                        {iss.pmcpa ? <Chip color={C.purple}>{iss.pmcpa}</Chip> : <span style={{ color:C.border }}>—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ display:"flex", gap:12, marginTop:24 }}>
+                <Btn>↓ Download PDF Report</Btn>
+                <Btn variant="dark">Submit to Vodori →</Btn>
+              </div>
+            </div>
+          </GlassCard>
+        )}
+      </div>
+    </div>
+  );
+
+  /* ── Issue Detail ── */
+  if (screen === "dashboard" && selected) return (
+    <div style={{ minHeight:"100vh", background:C.navy, paddingTop:76 }}>
+      <div style={{ maxWidth:860, margin:"0 auto", padding:32 }}>
+        <button onClick={() => setSelected(null)} style={{ background:"none", border:"none",
+          color:C.teal, fontSize:13, fontWeight:700, cursor:"pointer", marginBottom:20, padding:0,
+          fontFamily:font.body }}>← Back to Dashboard</button>
+
+        {/* Issue card */}
+        <GlassCard style={{ padding:28, marginBottom:20 }}>
+          <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:14, flexWrap:"wrap" }}>
+            <SeverityBadge sev={selected.sev} />
+            <Chip color={C.indigo}>{selected.clause}</Chip>
+          </div>
+          <div style={{ fontSize:17, color:C.white, fontWeight:700, fontStyle:"italic",
+            marginBottom:14, lineHeight:1.5 }}>"{selected.text}"</div>
+          <div style={{ background:`${C.amber}15`, border:`1px solid ${C.amber}33`,
+            borderRadius:10, padding:"14px 18px", borderLeft:`3px solid ${C.amber}` }}>
+            <div style={{ fontSize:12, fontWeight:700, color:C.amber, marginBottom:4 }}>WHY THIS WAS FLAGGED</div>
+            <div style={{ fontSize:13, color:C.slateLight, lineHeight:1.6 }}>{selected.reason}</div>
+          </div>
+        </GlassCard>
+
+        {/* Alternatives */}
+        <GlassCard style={{ padding:28, marginBottom:20 }}>
+          <div style={{ fontWeight:700, color:C.white, fontSize:16, marginBottom:4 }}>3 Compliant Alternatives</div>
+          <div style={{ fontSize:12, color:C.slate, marginBottom:20 }}>Select one to apply to your revised document</div>
+          {selected.alts.map((alt,i) => (
+            <div key={i} onClick={() => setAltPick({...altPick, [selected.id]:i})}
+              style={{ border:`2px solid ${altPick[selected.id]===i ? C.teal : C.border}`,
+                borderRadius:14, padding:"18px 20px", marginBottom:12, cursor:"pointer",
+                background: altPick[selected.id]===i ? `${C.teal}12` : `${C.navyLight}44`,
+                transition:"all 0.2s", display:"flex", gap:14 }}>
+              <div style={{ width:28, height:28, borderRadius:"50%", flexShrink:0,
+                background: altPick[selected.id]===i ? C.teal : C.border,
+                color: altPick[selected.id]===i ? C.navy : C.slate,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                fontSize:13, fontWeight:800 }}>{i+1}</div>
+              <div style={{ fontSize:14, color:C.slateLight, lineHeight:1.65 }}>{alt}</div>
+            </div>
+          ))}
+          {altPick[selected.id] !== undefined && (
+            <Btn style={{ marginTop:6 }}>✓ Apply Alternative {altPick[selected.id]+1}</Btn>
+          )}
+        </GlassCard>
+
+        {/* PMCPA */}
+        {selected.pmcpa && (
+          <GlassCard glow={C.purple} style={{ padding:28 }}>
+            <div style={{ fontWeight:700, color:C.white, fontSize:16, marginBottom:4,
+              display:"flex", alignItems:"center", gap:8 }}>📚 Relevant PMCPA Case</div>
+            <div style={{ fontSize:12, color:C.purple, marginBottom:18 }}>Historical ruling matched to this type of claim</div>
+            <div style={{ background:`${C.navyLight}88`, borderRadius:12, padding:"18px 20px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                <span style={{ fontWeight:700, color:C.purple, fontSize:15 }}>{selected.pmcpa}</span>
+              </div>
+              <div style={{ fontSize:13, color:C.slateLight, lineHeight:1.65, marginBottom:12 }}>
+                Company found in breach of {selected.clause} for unsubstantiated claim. No supporting head-to-head data was provided at time of complaint.
+              </div>
+              <a href="#" style={{ color:C.teal, fontSize:13, fontWeight:700, textDecoration:"none" }}>View Full Case Report →</a>
+            </div>
+          </GlassCard>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ③ ORG ONBOARDING + USER PORTAL
+═══════════════════════════════════════════════════════════ */
+function OrgPortal() {
+  const [tab, setTab] = useState("onboard"); // onboard | portal
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({ org:"", domain:"", plan:"Enterprise", adminName:"", adminEmail:"", adminRole:"" });
+  const [done, setDone] = useState(false);
+  const [userView, setUserView] = useState("home"); // home | upload | review
+
+  const plans = [
+    { id:"Starter",    price:"£990",  users:"Up to 5 users",  features:["500 docs/month","ABPI analysis","Email support"] },
+    { id:"Pro",        price:"£2,490",users:"Up to 20 users", features:["2,000 docs/month","PMCPA matching","Priority support","Vodori integration"] },
+    { id:"Enterprise", price:"Custom",users:"Unlimited users", features:["Unlimited docs","Full LLM pipeline","Dedicated CSM","SSO / SAML","Custom ABPI templates"] },
+  ];
+
+  /* ── Onboarding wizard ── */
+  const renderOnboard = () => {
+    if (done) return (
+      <div style={{ textAlign:"center", padding:"60px 32px" }}>
+        <div style={{ fontSize:64, marginBottom:20 }}>🎉</div>
+        <h2 style={{ fontFamily:font.display, fontSize:32, fontWeight:700, color:C.white, marginBottom:12 }}>
+          You're All Set!
+        </h2>
+        <p style={{ color:C.slateLight, fontSize:15, maxWidth:440, margin:"0 auto 32px", lineHeight:1.65 }}>
+          <strong style={{ color:C.white }}>{form.org}</strong> has been provisioned on ReviewReady. Your admin credentials have been sent to <strong style={{ color:C.teal }}>{form.adminEmail}</strong>.
+        </p>
+        <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
+          <Btn onClick={() => setTab("portal")}>Open Organisation Portal →</Btn>
+          <Btn variant="ghost" onClick={() => { setDone(false); setStep(1); setForm({ org:"",domain:"",plan:"Enterprise",adminName:"",adminEmail:"",adminRole:"" }); }}>
+            Onboard Another
+          </Btn>
+        </div>
+      </div>
+    );
+
+    return (
+      <div style={{ maxWidth:680, margin:"0 auto", padding:40 }}>
+        {/* Steps */}
+        <div style={{ display:"flex", alignItems:"center", gap:0, marginBottom:40, justifyContent:"center" }}>
+          {["Organisation","Plan","Admin","Confirm"].map((l,i) => {
+            const n = i+1; const done_ = step > n; const active_ = step === n;
+            return (
+              <div key={l} style={{ display:"flex", alignItems:"center" }}>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
+                  <div style={{ width:34, height:34, borderRadius:"50%",
+                    background: done_ ? C.green : active_ ? C.teal : C.border,
+                    color: done_||active_ ? C.navy : C.slate,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    fontWeight:800, fontSize:14, transition:"all 0.3s" }}>
+                    {done_ ? "✓" : n}
+                  </div>
+                  <div style={{ fontSize:11, color: active_ ? C.white : C.slate, fontWeight: active_?700:400 }}>{l}</div>
+                </div>
+                {i<3 && <div style={{ width:60, height:2, background: step>n?C.teal:C.border, margin:"0 8px 20px", transition:"all 0.3s" }} />}
+              </div>
+            );
+          })}
+        </div>
+
+        <GlassCard style={{ padding:36 }}>
+          {step===1 && (
+            <div>
+              <h3 style={{ fontFamily:font.display, fontSize:22, fontWeight:700, color:C.white, marginBottom:6 }}>Organisation Details</h3>
+              <p style={{ color:C.slate, fontSize:13, marginBottom:28 }}>Tell us about the organisation being onboarded.</p>
+              {[
+                { key:"org", label:"Organisation Name", ph:"e.g. Pfizer UK Limited" },
+                { key:"domain", label:"Email Domain", ph:"e.g. pfizer.com" },
+              ].map(f => (
+                <div key={f.key} style={{ marginBottom:20 }}>
+                  <label style={{ display:"block", fontSize:12, fontWeight:700, color:C.slateLight, marginBottom:8, letterSpacing:"0.05em" }}>{f.label.toUpperCase()}</label>
+                  <input value={form[f.key]} onChange={e => setForm({...form,[f.key]:e.target.value})}
+                    placeholder={f.ph}
+                    style={{ width:"100%", padding:"12px 16px", background:`${C.navyLight}66`,
+                      border:`1px solid ${C.border}`, borderRadius:10, color:C.white,
+                      fontSize:14, fontFamily:font.body, outline:"none", boxSizing:"border-box" }} />
+                </div>
+              ))}
+              <Btn onClick={() => form.org && setStep(2)} style={{ marginTop:8 }}>Continue →</Btn>
+            </div>
+          )}
+
+          {step===2 && (
+            <div>
+              <h3 style={{ fontFamily:font.display, fontSize:22, fontWeight:700, color:C.white, marginBottom:6 }}>Choose a Plan</h3>
+              <p style={{ color:C.slate, fontSize:13, marginBottom:28 }}>Select the subscription tier for {form.org}.</p>
+              <div style={{ display:"flex", flexDirection:"column", gap:14, marginBottom:28 }}>
+                {plans.map(p => (
+                  <div key={p.id} onClick={() => setForm({...form,plan:p.id})}
+                    style={{ border:`2px solid ${form.plan===p.id ? C.teal : C.border}`,
+                      borderRadius:14, padding:"18px 22px", cursor:"pointer",
+                      background: form.plan===p.id ? `${C.teal}12` : `${C.navyLight}44`,
+                      transition:"all 0.2s", display:"flex", alignItems:"center", gap:18 }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
+                        <span style={{ fontWeight:800, color:C.white, fontSize:16 }}>{p.id}</span>
+                        <Chip color={C.slate}>{p.users}</Chip>
+                        {p.id==="Enterprise" && <Chip color={C.amber}>RECOMMENDED</Chip>}
+                      </div>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:8 }}>
+                        {p.features.map(f => <span key={f} style={{ fontSize:11, color:C.slate }}>✓ {f}</span>)}
+                      </div>
+                    </div>
+                    <div style={{ fontFamily:font.display, fontSize:22, fontWeight:700,
+                      color: form.plan===p.id ? C.teal : C.slateLight }}>{p.price}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display:"flex", gap:10 }}>
+                <Btn variant="ghost" onClick={() => setStep(1)}>← Back</Btn>
+                <Btn onClick={() => setStep(3)}>Continue →</Btn>
+              </div>
+            </div>
+          )}
+
+          {step===3 && (
+            <div>
+              <h3 style={{ fontFamily:font.display, fontSize:22, fontWeight:700, color:C.white, marginBottom:6 }}>Primary Administrator</h3>
+              <p style={{ color:C.slate, fontSize:13, marginBottom:28 }}>This person will manage users and settings for {form.org}.</p>
+              {[
+                { key:"adminName",  label:"Full Name",        ph:"Dr. Sarah Chen" },
+                { key:"adminEmail", label:"Work Email",       ph:"s.chen@pfizer.com" },
+                { key:"adminRole",  label:"Role / Job Title", ph:"Head of Medical Affairs" },
+              ].map(f => (
+                <div key={f.key} style={{ marginBottom:20 }}>
+                  <label style={{ display:"block", fontSize:12, fontWeight:700, color:C.slateLight, marginBottom:8, letterSpacing:"0.05em" }}>{f.label.toUpperCase()}</label>
+                  <input value={form[f.key]} onChange={e => setForm({...form,[f.key]:e.target.value})}
+                    placeholder={f.ph}
+                    style={{ width:"100%", padding:"12px 16px", background:`${C.navyLight}66`,
+                      border:`1px solid ${C.border}`, borderRadius:10, color:C.white,
+                      fontSize:14, fontFamily:font.body, outline:"none", boxSizing:"border-box" }} />
+                </div>
+              ))}
+              <div style={{ display:"flex", gap:10 }}>
+                <Btn variant="ghost" onClick={() => setStep(2)}>← Back</Btn>
+                <Btn onClick={() => form.adminEmail && setStep(4)}>Continue →</Btn>
+              </div>
+            </div>
+          )}
+
+          {step===4 && (
+            <div>
+              <h3 style={{ fontFamily:font.display, fontSize:22, fontWeight:700, color:C.white, marginBottom:24 }}>Confirm & Provision</h3>
+              {[
+                ["Organisation", form.org],
+                ["Domain",       form.domain],
+                ["Plan",         form.plan],
+                ["Admin",        form.adminName],
+                ["Admin Email",  form.adminEmail],
+                ["Admin Role",   form.adminRole],
+              ].map(([k,v]) => (
+                <div key={k} style={{ display:"flex", justifyContent:"space-between",
+                  padding:"12px 0", borderBottom:`1px solid ${C.border}`, fontSize:14 }}>
+                  <span style={{ color:C.slate }}>{k}</span>
+                  <span style={{ color:C.white, fontWeight:600 }}>{v || "—"}</span>
+                </div>
+              ))}
+              <div style={{ background:`${C.green}15`, border:`1px solid ${C.green}33`,
+                borderRadius:10, padding:"14px 18px", marginTop:20, marginBottom:24 }}>
+                <div style={{ fontSize:12, color:C.green }}>✓ Organisation will be provisioned immediately. Admin will receive an email with login credentials and setup instructions.</div>
+              </div>
+              <div style={{ display:"flex", gap:10 }}>
+                <Btn variant="ghost" onClick={() => setStep(3)}>← Back</Btn>
+                <Btn onClick={() => setDone(true)}>🚀 Provision Organisation</Btn>
+              </div>
+            </div>
+          )}
+        </GlassCard>
+      </div>
+    );
+  };
+
+  /* ── Org User Portal ── */
+  const renderPortal = () => (
+    <div style={{ maxWidth:1080, margin:"0 auto", padding:32 }}>
+      {/* Portal header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:28 }}>
+        <div>
+          <Chip color={C.teal}>ORGANISATION PORTAL</Chip>
+          <h2 style={{ fontFamily:font.display, fontSize:24, fontWeight:700, color:C.white, margin:"10px 0 4px" }}>
+            AstraZeneca UK
+          </h2>
+          <div style={{ color:C.slate, fontSize:13 }}>Enterprise Plan · 48 users · 312 documents reviewed</div>
+        </div>
+        <div style={{ display:"flex", gap:10 }}>
+          <Btn variant="ghost" size="sm">⚙️ Settings</Btn>
+          <Btn size="sm">+ Invite User</Btn>
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
+        {[
+          { icon:"📄", val:"312", label:"Docs Reviewed",        col:C.teal },
+          { icon:"🚩", val:"1,204",label:"Issues Caught",        col:C.amber },
+          { icon:"✅", val:"89%",  label:"First-Pass Rate",      col:C.green },
+          { icon:"⏱️", val:"3.2d", label:"Avg Time Saved/Doc",   col:C.purple },
+        ].map(s => (
+          <GlassCard key={s.label} style={{ padding:"20px 22px" }}>
+            <div style={{ fontSize:22, marginBottom:8 }}>{s.icon}</div>
+            <div style={{ fontFamily:font.display, fontSize:28, fontWeight:700, color:s.col }}>{s.val}</div>
+            <div style={{ fontSize:12, color:C.slate, marginTop:4 }}>{s.label}</div>
+          </GlassCard>
+        ))}
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
+        {/* User list */}
+        <GlassCard>
+          <div style={{ padding:"16px 22px", borderBottom:`1px solid ${C.border}`,
+            fontWeight:700, color:C.white, fontSize:14, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            Team Members
+            <Btn size="sm">+ Add</Btn>
+          </div>
+          {ORG_USERS.map((u,i) => (
+            <div key={u.id} style={{ padding:"14px 22px",
+              borderBottom: i<ORG_USERS.length-1 ? `1px solid ${C.border}` : "none",
+              display:"flex", alignItems:"center", gap:14 }}>
+              <div style={{ width:38, height:38, borderRadius:12, background:`${C.teal}22`,
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
+                {u.badge}
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:700, color:C.white, fontSize:13 }}>{u.name}</div>
+                <div style={{ fontSize:11, color:C.slate }}>{u.role}</div>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
+                <Chip color={u.status==="Active"?C.green:C.amber}>{u.status}</Chip>
+                <div style={{ fontSize:10, color:C.slate }}>{u.docs} docs</div>
+              </div>
+            </div>
+          ))}
+        </GlassCard>
+
+        {/* Activity + Quick Actions */}
+        <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <GlassCard style={{ padding:22 }}>
+            <div style={{ fontWeight:700, color:C.white, fontSize:14, marginBottom:16 }}>Quick Actions</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              {[
+                { icon:"📤", label:"Upload Document",    col:C.teal },
+                { icon:"📊", label:"View Reports",       col:C.indigo },
+                { icon:"👥", label:"Manage Users",       col:C.purple },
+                { icon:"⚙️", label:"Integrations",       col:C.amber },
+              ].map(a => (
+                <div key={a.label} style={{ background:`${a.col}15`, border:`1px solid ${a.col}33`,
+                  borderRadius:12, padding:"14px 16px", cursor:"pointer", transition:"all 0.2s",
+                  display:"flex", alignItems:"center", gap:10 }}
+                  onMouseEnter={e=>e.currentTarget.style.background=`${a.col}25`}
+                  onMouseLeave={e=>e.currentTarget.style.background=`${a.col}15`}>
+                  <span style={{ fontSize:20 }}>{a.icon}</span>
+                  <span style={{ fontSize:12, fontWeight:700, color:C.white }}>{a.label}</span>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+
+          <GlassCard style={{ padding:22 }}>
+            <div style={{ fontWeight:700, color:C.white, fontSize:14, marginBottom:16 }}>Recent Activity</div>
+            {[
+              { icon:"✅", text:"Promotional_Email_v2.docx passed review", time:"2m ago", col:C.green },
+              { icon:"🚩", text:"Congress_Slides_v1.pptx flagged 5 issues", time:"18m ago", col:C.amber },
+              { icon:"📤", text:"SmPC_Summary_final.pdf uploaded", time:"1h ago", col:C.teal },
+              { icon:"👤", text:"Priya Nair accepted invitation", time:"3h ago", col:C.indigo },
+            ].map((a,i) => (
+              <div key={i} style={{ display:"flex", gap:12, alignItems:"flex-start", marginBottom:14 }}>
+                <div style={{ width:28, height:28, borderRadius:8, background:`${a.col}22`,
+                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, flexShrink:0 }}>
+                  {a.icon}
+                </div>
+                <div>
+                  <div style={{ fontSize:12, color:C.slateLight }}>{a.text}</div>
+                  <div style={{ fontSize:10, color:C.slate, marginTop:2 }}>{a.time}</div>
+                </div>
+              </div>
+            ))}
+          </GlassCard>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight:"100vh", background:C.navy, paddingTop:76 }}>
+      {/* Sub-tabs */}
+      <div style={{ borderBottom:`1px solid ${C.border}`, padding:"0 32px",
+        display:"flex", gap:0, maxWidth:1080, margin:"0 auto" }}>
+        {[
+          { id:"onboard", label:"🏢 Onboard Organisation" },
+          { id:"portal",  label:"👥 Organisation Portal" },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"14px 24px", background:"transparent",
+              border:"none", borderBottom: tab===t.id ? `2px solid ${C.teal}` : "2px solid transparent",
+              color: tab===t.id ? C.white : C.slate, fontWeight:700, fontSize:13,
+              cursor:"pointer", fontFamily:font.body, transition:"all 0.2s" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "onboard" ? renderOnboard() : renderPortal()}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ④ SUPER ADMIN PORTAL
+═══════════════════════════════════════════════════════════ */
+function SuperAdmin() {
+  const [tab, setTab] = useState("overview"); // overview | orgs | users | analytics | security
+  const [selectedOrg, setSelectedOrg] = useState(null);
+
+  const sideItems = [
+    { id:"overview",  icon:"📊", label:"Overview" },
+    { id:"orgs",      icon:"🏢", label:"Organisations" },
+    { id:"users",     icon:"👥", label:"All Users" },
+    { id:"analytics", icon:"📈", label:"Analytics" },
+    { id:"security",  icon:"🔒", label:"Security" },
+  ];
+
+  return (
+    <div style={{ minHeight:"100vh", background:C.navy, paddingTop:60, display:"flex" }}>
+      {/* Sidebar */}
+      <div style={{ width:220, background:C.navyCard, borderRight:`1px solid ${C.border}`,
+        padding:"24px 0", flexShrink:0, height:"calc(100vh - 60px)", position:"sticky", top:60 }}>
+        <div style={{ padding:"0 16px 20px", borderBottom:`1px solid ${C.border}`, marginBottom:12 }}>
+          <div style={{ fontSize:10, letterSpacing:"0.1em", color:C.slate, fontWeight:700, marginBottom:6 }}>SUPER ADMIN</div>
+          <div style={{ fontWeight:800, color:C.white, fontSize:14 }}>Platform Control Centre</div>
+        </div>
+        {sideItems.map(it => (
+          <button key={it.id} onClick={() => setTab(it.id)}
+            style={{ display:"flex", alignItems:"center", gap:12, width:"100%", padding:"12px 20px",
+              background: tab===it.id ? `${C.teal}18` : "transparent",
+              borderLeft: tab===it.id ? `3px solid ${C.teal}` : "3px solid transparent",
+              border:"none", color: tab===it.id ? C.white : C.slate,
+              fontWeight: tab===it.id ? 700 : 400, fontSize:14, cursor:"pointer",
+              fontFamily:font.body, transition:"all 0.2s", textAlign:"left" }}>
+            <span style={{ fontSize:18 }}>{it.icon}</span>
+            {it.label}
+          </button>
+        ))}
+        {/* System status */}
+        <div style={{ position:"absolute", bottom:20, left:0, right:0, padding:"0 16px" }}>
+          <div style={{ background:`${C.green}15`, border:`1px solid ${C.green}33`,
+            borderRadius:10, padding:"12px 14px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:C.green }} />
+              <span style={{ fontSize:11, fontWeight:700, color:C.green }}>All Systems Operational</span>
+            </div>
+            <div style={{ fontSize:10, color:C.slate, marginTop:4 }}>LLM · ABPI DB · PMCPA</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div style={{ flex:1, overflow:"auto", padding:32 }}>
+        {tab === "overview" && (
+          <div>
+            <div style={{ marginBottom:28 }}>
+              <Chip color={C.teal}>PLATFORM OVERVIEW</Chip>
+              <h2 style={{ fontFamily:font.display, fontSize:24, fontWeight:700, color:C.white, margin:"10px 0" }}>
+                ReviewReady Admin Dashboard
+              </h2>
+              <div style={{ color:C.slate, fontSize:13 }}>
+                {new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
+              </div>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
+              {[
+                { icon:"🏢", val:"5",    label:"Active Organisations", col:C.teal,   change:"+1 this month" },
+                { icon:"👥", val:"164",  label:"Total Users",          col:C.indigo, change:"+12 this week" },
+                { icon:"📄", val:"1,097",label:"Docs Reviewed",        col:C.green,  change:"+84 today" },
+                { icon:"🚩", val:"4,218",label:"Issues Caught",        col:C.amber,  change:"Lifetime" },
+              ].map(s => (
+                <GlassCard key={s.label} style={{ padding:"22px 24px" }}>
+                  <div style={{ fontSize:22, marginBottom:8 }}>{s.icon}</div>
+                  <div style={{ fontFamily:font.display, fontSize:30, fontWeight:700, color:s.col }}>{s.val}</div>
+                  <div style={{ fontSize:12, color:C.slate, marginTop:4 }}>{s.label}</div>
+                  <div style={{ fontSize:11, color:C.green, marginTop:6 }}>{s.change}</div>
+                </GlassCard>
+              ))}
+            </div>
+
+            {/* Orgs overview */}
+            <GlassCard style={{ marginBottom:20 }}>
+              <div style={{ padding:"16px 24px", borderBottom:`1px solid ${C.border}`,
+                display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ fontWeight:700, color:C.white, fontSize:14 }}>Organisations</div>
+                <Btn size="sm" onClick={() => setTab("orgs")}>View All →</Btn>
+              </div>
+              {ORG_LIST.slice(0,3).map((o,i) => (
+                <div key={o.id} style={{ padding:"14px 24px",
+                  borderBottom: i<2 ? `1px solid ${C.border}` : "none",
+                  display:"flex", alignItems:"center", gap:16 }}>
+                  <div style={{ width:40, height:40, borderRadius:12, background:`${C.teal}22`,
+                    display:"flex", alignItems:"center", justifyContent:"center", fontSize:20 }}>
+                    {o.logo}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:700, color:C.white, fontSize:14 }}>{o.name}</div>
+                    <div style={{ fontSize:11, color:C.slate }}>{o.users} users · {o.docs} docs</div>
+                  </div>
+                  <Chip color={C.indigo}>{o.plan}</Chip>
+                  <Chip color={o.status==="Active"?C.green:C.amber}>{o.status}</Chip>
+                </div>
+              ))}
+            </GlassCard>
+
+            {/* LLM Health */}
+            <GlassCard style={{ padding:24 }}>
+              <div style={{ fontWeight:700, color:C.white, fontSize:14, marginBottom:16 }}>System Health</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+                {[
+                  { label:"LLM Response Time", val:"1.2s", sub:"avg last 24h", col:C.green },
+                  { label:"ABPI DB Sync", val:"Live", sub:"Last synced 2h ago", col:C.teal },
+                  { label:"PMCPA Index", val:"312 cases", sub:"Updated daily", col:C.purple },
+                  { label:"API Uptime", val:"99.98%", sub:"Last 30 days", col:C.green },
+                  { label:"Active Sessions", val:"23", sub:"Right now", col:C.indigo },
+                  { label:"Failed Reviews", val:"0", sub:"Today", col:C.green },
+                ].map(s => (
+                  <div key={s.label} style={{ background:`${C.navyLight}44`, borderRadius:12, padding:"16px 18px" }}>
+                    <div style={{ fontSize:20, fontWeight:800, color:s.col, marginBottom:4 }}>{s.val}</div>
+                    <div style={{ fontSize:12, color:C.white, fontWeight:600 }}>{s.label}</div>
+                    <div style={{ fontSize:11, color:C.slate, marginTop:2 }}>{s.sub}</div>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          </div>
+        )}
+
+        {tab === "orgs" && (
+          <div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
+              <div>
+                <Chip color={C.teal}>ORGANISATIONS</Chip>
+                <h2 style={{ fontFamily:font.display, fontSize:22, fontWeight:700, color:C.white, margin:"10px 0 0" }}>
+                  All Organisations ({ORG_LIST.length})
+                </h2>
+              </div>
+              <Btn>+ Onboard New Org</Btn>
+            </div>
+            <GlassCard>
+              <div style={{ padding:"12px 24px", borderBottom:`1px solid ${C.border}`,
+                display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr auto",
+                fontSize:11, color:C.slate, fontWeight:700, letterSpacing:"0.06em" }}>
+                {["ORGANISATION","PLAN","USERS","DOCS","STATUS",""].map(h => <div key={h}>{h}</div>)}
+              </div>
+              {ORG_LIST.map((o,i) => (
+                <div key={o.id} style={{ padding:"16px 24px",
+                  borderBottom: i<ORG_LIST.length-1 ? `1px solid ${C.border}` : "none",
+                  display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr auto",
+                  alignItems:"center", transition:"background 0.15s", cursor:"pointer" }}
+                  onMouseEnter={e=>e.currentTarget.style.background=`${C.teal}08`}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                    <div style={{ width:36, height:36, borderRadius:10, background:`${C.teal}22`,
+                      display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>{o.logo}</div>
+                    <span style={{ fontWeight:700, color:C.white, fontSize:14 }}>{o.name}</span>
+                  </div>
+                  <Chip color={C.indigo}>{o.plan}</Chip>
+                  <span style={{ color:C.slateLight }}>{o.users}</span>
+                  <span style={{ color:C.slateLight }}>{o.docs}</span>
+                  <Chip color={o.status==="Active"?C.green:C.amber}>{o.status}</Chip>
+                  <div style={{ display:"flex", gap:6 }}>
+                    <Btn size="sm" variant="dark">Manage</Btn>
+                    <Btn size="sm" variant="ghost">⚙</Btn>
+                  </div>
+                </div>
+              ))}
+            </GlassCard>
+          </div>
+        )}
+
+        {tab === "security" && (
+          <div>
+            <Chip color={C.indigo}>SECURITY CENTRE</Chip>
+            <h2 style={{ fontFamily:font.display, fontSize:22, fontWeight:700, color:C.white, margin:"10px 0 24px" }}>
+              Platform Security & Compliance
+            </h2>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
+              {[
+                { icon:"🔐", title:"Encryption", col:C.teal, items:["TLS 1.3 in transit","AES-256 at rest","Key rotation every 30 days","HSM-backed key management"] },
+                { icon:"👁️", title:"Access Control", col:C.indigo, items:["Role-based access control (RBAC)","SSO / SAML 2.0 support","MFA enforced for all admins","Session timeout: 30 minutes"] },
+                { icon:"📋", title:"Audit & Compliance", col:C.purple, items:["Full tamper-proof audit log","GDPR Article 30 records","User identity on every action","Exportable compliance reports"] },
+                { icon:"🚫", title:"Data Isolation", col:C.amber, items:["Zero post-session retention","No LLM training on org data","Org-level data segregation","DSAR request processing"] },
+              ].map(s => (
+                <GlassCard key={s.title} glow={s.col} style={{ padding:26 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:18 }}>
+                    <div style={{ width:40, height:40, borderRadius:12, background:`${s.col}22`,
+                      display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>{s.icon}</div>
+                    <div style={{ fontWeight:700, color:C.white, fontSize:15 }}>{s.title}</div>
+                  </div>
+                  {s.items.map(item => (
+                    <div key={item} style={{ display:"flex", gap:10, alignItems:"center",
+                      padding:"8px 0", borderBottom:`1px solid ${C.border}`, fontSize:13 }}>
+                      <span style={{ color:s.col }}>✓</span>
+                      <span style={{ color:C.slateLight }}>{item}</span>
+                    </div>
+                  ))}
+                </GlassCard>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {["users","analytics"].includes(tab) && (
+          <div style={{ textAlign:"center", padding:"80px 32px" }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>{tab==="users"?"👥":"📈"}</div>
+            <h3 style={{ fontFamily:font.display, fontSize:24, color:C.white, marginBottom:8 }}>
+              {tab==="users" ? "User Management" : "Analytics"}
+            </h3>
+            <p style={{ color:C.slate }}>Full {tab} panel — coming in next sprint.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ROOT
+═══════════════════════════════════════════════════════════ */
+export default function App() {
+  const [page, setPage] = useState("landing");
+  const pages = { landing:<LandingPage setPage={setPage}/>, app:<ComplianceApp/>, onboard:<OrgPortal/>, superadmin:<SuperAdmin/> };
+  return (
+    <div style={{ fontFamily:font.body, background:C.navy, minHeight:"100vh" }}>
+      <TopNav page={page} setPage={setPage} />
+      <div style={{ paddingTop: page==="superadmin" ? 60 : 60 }}>
+        {pages[page]}
+      </div>
+    </div>
+  );
+}
