@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { C, font } from '../styles/designTokens';
-import { ISSUES, DOC_SECTIONS, ISSUE_MAP } from '../data/dummyData';
+
 import Chip from '../components/Chip';
 import Btn from '../components/Btn';
 import GlassCard from '../components/GlassCard';
 import SeverityBadge from '../components/SeverityBadge';
 import Gauge from '../components/Gauge';
 import * as LucideIcons from 'lucide-react';
-import { Brain, Lock, Upload, FileText, Flag, CheckCircle, Circle, BookOpen, ArrowLeft, Download, Send, AlertTriangle, BarChart3, Pencil } from 'lucide-react';
+import { Brain, Lock, Upload, FileText, Flag, CheckCircle, Circle, BookOpen, ArrowLeft, Download, Send, AlertTriangle, BarChart3, Pencil, Loader2 } from 'lucide-react';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 function ComplianceApp() {
   const [screen, setScreen] = useState("upload");
@@ -16,25 +18,133 @@ function ComplianceApp() {
   const [progress, setProgress] = useState(0);
   const [selected, setSelected] = useState(null);
   const [altPick, setAltPick] = useState({});
-  const [view, setView] = useState("document"); // document | issues | report
+  const [view, setView] = useState("document");
   const [hovPara, setHovPara] = useState(null);
-
   const [panelIssue, setPanelIssue] = useState(null);
+  const [error, setError] = useState(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  
+  // API response data
+  const [analysisData, setAnalysisData] = useState(null);
+  const fileInputRef = useRef(null);
+
+  // Derived data from API response
+  const ISSUES = analysisData?.issues || [];
+  const DOC_SECTIONS = analysisData?.doc_sections || [];
+  const ISSUE_MAP = analysisData?.issue_map || {};
+  const scoreData = analysisData?.score || {};
 
   const stepLabels = ["Extracting content","Tokenising","Mapping to ABPI clauses",
     "Scoring issues","Generating alternatives","PMCPA matching","Building report"];
   const [stepIdx, setStepIdx] = useState(0);
 
-  const runAnalysis = () => {
+  const handleFileSelect = (e) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      const ext = selectedFile.name.split('.').pop().toLowerCase();
+      if (['pdf', 'docx'].includes(ext)) {
+        setFile(selectedFile);
+        setError(null);
+      } else {
+        setError('Please select a PDF or DOCX file');
+      }
+    }
+  };
+
+  const runAnalysis = async () => {
     if (!file) return;
-    setAnalysing(true); setProgress(0); setStepIdx(0);
-    let p = 0, s = 0;
+    setAnalysing(true); 
+    setProgress(0); 
+    setStepIdx(0);
+    setError(null);
+
+    // Start progress animation
+    let p = 0;
     const iv = setInterval(() => {
-      p += 2; s = Math.floor((p/100)*(stepLabels.length));
-      setProgress(Math.min(p,100));
+      p += 1;
+      const s = Math.floor((p/100)*(stepLabels.length));
+      setProgress(Math.min(p, 95));
       setStepIdx(Math.min(s, stepLabels.length-1));
-      if (p>=100) { clearInterval(iv); setTimeout(()=>{ setAnalysing(false); setScreen("dashboard"); },400); }
-    }, 55);
+      if (p >= 95) clearInterval(iv);
+    }, 100);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE_URL}/api/analyze`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      clearInterval(iv);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Analysis failed');
+      }
+
+      const data = await response.json();
+      setAnalysisData(data);
+      setProgress(100);
+      setStepIdx(stepLabels.length - 1);
+      
+      setTimeout(() => {
+        setAnalysing(false);
+        setScreen("dashboard");
+      }, 400);
+
+    } catch (err) {
+      clearInterval(iv);
+      setAnalysing(false);
+      setError(err.message || 'Failed to analyze document. Please try again.');
+      console.error('Analysis error:', err);
+    }
+  };
+
+  const downloadPdfReport = async () => {
+    if (!file || downloadingPdf) return;
+    setDownloadingPdf(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE_URL}/api/analyze/pdf`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('PDF generation failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `compliance_report_${new Date().toISOString().slice(0,10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+    } catch (err) {
+      setError('Failed to download PDF report');
+      console.error('PDF download error:', err);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const resetUpload = () => {
+    setScreen("upload");
+    setFile(null);
+    setAnalysisData(null);
+    setError(null);
+    setPanelIssue(null);
+    setSelected(null);
+    setAltPick({});
   };
 
   /* ── Upload ── */
@@ -87,8 +197,33 @@ function ComplianceApp() {
             </p>
           </div>
 
+          {/* Hidden file input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept=".pdf,.docx"
+            style={{ display: 'none' }}
+          />
+
           {/* Drop zone */}
-          <div onClick={() => setFile({ name:"Draft_Promotional_v3.docx", size:"142 KB" })}
+          <div 
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const droppedFile = e.dataTransfer.files?.[0];
+              if (droppedFile) {
+                const ext = droppedFile.name.split('.').pop().toLowerCase();
+                if (['pdf', 'docx'].includes(ext)) {
+                  setFile(droppedFile);
+                  setError(null);
+                } else {
+                  setError('Please select a PDF or DOCX file');
+                }
+              }
+            }}
             style={{ border:`2px dashed ${file ? C.green : C.border}`,
               borderRadius:16, padding:"44px 32px", textAlign:"center", cursor:"pointer",
               background: file ? `${C.green}08` : `${C.navyLight}40`,
@@ -99,7 +234,9 @@ function ComplianceApp() {
             {file ? (
               <>
                 <div style={{ fontWeight:700, color:C.white, fontSize:15 }}>{file.name}</div>
-                <div style={{ color:C.slate, fontSize:13, marginTop:4 }}>{file.size} · DOCX</div>
+                <div style={{ color:C.slate, fontSize:13, marginTop:4 }}>
+                  {(file.size / 1024).toFixed(1)} KB · {file.name.split('.').pop().toUpperCase()}
+                </div>
                 <div style={{ color:C.green, fontSize:13, marginTop:10, fontWeight:600 }}>✓ Ready for analysis</div>
               </>
             ) : (
@@ -109,6 +246,16 @@ function ComplianceApp() {
               </>
             )}
           </div>
+
+          {/* Error message */}
+          {error && (
+            <div style={{ background:`${C.red}15`, border:`1px solid ${C.red}33`,
+              borderRadius:12, padding:"12px 16px", marginBottom:24,
+              display:"flex", gap:10, alignItems:"center" }}>
+              <AlertTriangle size={18} color={C.red} />
+              <div style={{ color:C.red, fontSize:13 }}>{error}</div>
+            </div>
+          )}
 
           {/* Security notice */}
           <div style={{ background:`${C.indigo}15`, border:`1px solid ${C.indigo}33`,
@@ -142,7 +289,7 @@ function ComplianceApp() {
             <h2 style={{ fontFamily:font.display, fontSize:24, fontWeight:700, color:C.white, margin:"10px 0 4px" }}>
               Compliance Dashboard
             </h2>
-            <div style={{ color:C.slate, fontSize:13 }}>Draft_Promotional_v3.docx · Analysed just now</div>
+            <div style={{ color:C.slate, fontSize:13 }}>{analysisData?.document_name || file?.name} · Analysed just now</div>
           </div>
           <div style={{ display:"flex", gap:10 }}>
             {[
@@ -152,23 +299,23 @@ function ComplianceApp() {
             ].map(([v,lbl]) => (
               <Btn key={v} variant={view===v?"primary":"dark"} onClick={() => setView(v)}>{lbl}</Btn>
             ))}
-            <Btn variant="ghost" onClick={() => setScreen("upload")}><Upload size={14} style={{marginRight:6}} /> New Upload</Btn>
+            <Btn variant="ghost" onClick={resetUpload}><Upload size={14} style={{marginRight:6}} /> New Upload</Btn>
           </div>
         </div>
 
         {/* Stats row */}
         <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", gap:20, marginBottom:24 }}>
           <GlassCard style={{ padding:"24px 28px", display:"flex", alignItems:"center" }}>
-            <Gauge score={54} />
+            <Gauge score={scoreData.overall_score || 0} />
           </GlassCard>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16 }}>
             {[
-              { icon: Flag, val:ISSUES.length, label:"Total Issues",      col:C.teal, fill:false },
-              { icon: Circle, val:1,             label:"High Risk",          col:C.red, fill:true  },
-              { icon: Circle, val:1,             label:"Moderate Risk",      col:C.amber, fill:true },
-              { icon: Circle, val:1,             label:"Low Risk",           col:C.green, fill:true },
-              { icon: BookOpen, val:2,             label:"PMCPA Cases",        col:C.purple, fill:false },
-              { icon: FileText, val:9,             label:"Alternatives Ready", col:C.indigo, fill:false },
+              { icon: Flag, val:scoreData.total_issues || 0, label:"Total Issues",      col:C.teal, fill:false },
+              { icon: Circle, val:scoreData.high_risk || 0,    label:"High Risk",          col:C.red, fill:true  },
+              { icon: Circle, val:scoreData.moderate_risk || 0, label:"Moderate Risk",      col:C.amber, fill:true },
+              { icon: Circle, val:scoreData.low_risk || 0,     label:"Low Risk",           col:C.green, fill:true },
+              { icon: BookOpen, val:scoreData.pmcpa_cases || 0, label:"PMCPA Cases",        col:C.purple, fill:false },
+              { icon: FileText, val:scoreData.alternatives_ready || 0, label:"Alternatives Ready", col:C.indigo, fill:false },
             ].map(s => {
               const IconComponent = s.icon;
               return (
@@ -537,13 +684,33 @@ function ComplianceApp() {
               background:`linear-gradient(90deg, ${C.navyLight}, ${C.navyCard})`, borderRadius:"20px 20px 0 0" }}>
               <Chip color={C.teal}>COMPLIANCE SUMMARY REPORT</Chip>
               <h3 style={{ color:C.white, fontFamily:font.display, fontSize:20, margin:"10px 0 4px", fontWeight:700 }}>
-                Draft_Promotional_v3.docx
+                {analysisData?.document_name || file?.name}
               </h3>
               <div style={{ color:C.slate, fontSize:12 }}>
                 {new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})} · Prepared for Vodori Submission
               </div>
             </div>
             <div style={{ padding:"24px 28px" }}>
+              {/* Summary Stats */}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24 }}>
+                <div style={{ background:`${C.navyLight}66`, borderRadius:12, padding:"16px 20px", textAlign:"center" }}>
+                  <div style={{ fontSize:28, fontWeight:800, color:C.teal }}>{scoreData.overall_score || 0}%</div>
+                  <div style={{ fontSize:11, color:C.slate, marginTop:4 }}>Compliance Score</div>
+                </div>
+                <div style={{ background:`${C.red}15`, borderRadius:12, padding:"16px 20px", textAlign:"center" }}>
+                  <div style={{ fontSize:28, fontWeight:800, color:C.red }}>{scoreData.high_risk || 0}</div>
+                  <div style={{ fontSize:11, color:C.slate, marginTop:4 }}>High Risk</div>
+                </div>
+                <div style={{ background:`${C.amber}15`, borderRadius:12, padding:"16px 20px", textAlign:"center" }}>
+                  <div style={{ fontSize:28, fontWeight:800, color:C.amber }}>{scoreData.moderate_risk || 0}</div>
+                  <div style={{ fontSize:11, color:C.slate, marginTop:4 }}>Moderate Risk</div>
+                </div>
+                <div style={{ background:`${C.green}15`, borderRadius:12, padding:"16px 20px", textAlign:"center" }}>
+                  <div style={{ fontSize:28, fontWeight:800, color:C.green }}>{scoreData.low_risk || 0}</div>
+                  <div style={{ fontSize:11, color:C.slate, marginTop:4 }}>Low Risk</div>
+                </div>
+              </div>
+
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                 <thead>
                   <tr>
@@ -556,15 +723,15 @@ function ComplianceApp() {
                 </thead>
                 <tbody>
                   {ISSUES.map((iss,i) => (
-                    <tr key={iss.id} style={{ borderBottom:`1px solid ${C.border}` }}>
+                    <tr key={iss.id || i} style={{ borderBottom:`1px solid ${C.border}` }}>
                       <td style={{ padding:"14px", color:C.slate }}>{i+1}</td>
                       <td style={{ padding:"14px", color:C.indigo, fontWeight:700 }}>{iss.clause}</td>
                       <td style={{ padding:"14px" }}><SeverityBadge sev={iss.sev} /></td>
                       <td style={{ padding:"14px", color:C.slateLight, fontStyle:"italic", maxWidth:220 }}>
-                        "{iss.text.slice(0,40)}..."
+                        "{iss.text?.slice(0,40)}..."
                       </td>
                       <td style={{ padding:"14px" }}>
-                        <Chip color={C.green}>3 provided</Chip>
+                        <Chip color={C.green}>{iss.alts?.length || 0} provided</Chip>
                       </td>
                       <td style={{ padding:"14px" }}>
                         {iss.pmcpa ? <Chip color={C.purple}>{iss.pmcpa}</Chip> : <span style={{ color:C.border }}>—</span>}
@@ -574,7 +741,13 @@ function ComplianceApp() {
                 </tbody>
               </table>
               <div style={{ display:"flex", gap:12, marginTop:24 }}>
-                <Btn><Download size={14} style={{marginRight:6}} /> Download PDF Report</Btn>
+                <Btn onClick={downloadPdfReport} disabled={downloadingPdf}>
+                  {downloadingPdf ? (
+                    <><Loader2 size={14} style={{marginRight:6, animation:"spin 1s linear infinite"}} /> Generating...</>
+                  ) : (
+                    <><Download size={14} style={{marginRight:6}} /> Download PDF Report</>
+                  )}
+                </Btn>
                 <Btn variant="dark"><Send size={14} style={{marginRight:6}} /> Submit to Vodori</Btn>
               </div>
             </div>
